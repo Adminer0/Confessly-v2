@@ -174,22 +174,74 @@ function initializeDB(force = false) {
   }
 }
 
-initializeDB();
+try {
+  initializeDB();
+} catch (err) {
+  console.error('Failed to initialize database on startup:', err);
+}
 
 // DB Access Helpers
+// In-memory fallback database to ensure JSON is returned even if the filesystem fails completely
+let MEMORY_DB_FALLBACK: DatabaseSchema | null = null;
+
+function getMemoryFallbackDB(): DatabaseSchema {
+  if (!MEMORY_DB_FALLBACK) {
+    MEMORY_DB_FALLBACK = {
+      admins: [
+        {
+          id: 'admin-1',
+          username: 'owner',
+          passwordHash: 'password123',
+          disabled: false,
+          permissions: ['super_admin'],
+          loginHistory: []
+        },
+        {
+          id: 'admin-sadmin',
+          username: 'sadmin',
+          passwordHash: '7845',
+          disabled: false,
+          permissions: ['super_admin'],
+          loginHistory: []
+        }
+      ],
+      messages: [],
+      settings: {
+        blockedIPs: [],
+        profanityFilterEnabled: true,
+        customBlockedWords: ['spam', 'abuse', 'hack', 'scam', 'hate'],
+        defaultCharacterLimit: 300
+      },
+      auditLogs: []
+    };
+  }
+  return MEMORY_DB_FALLBACK;
+}
+
 function readDB(): DatabaseSchema {
   try {
     const data = fs.readFileSync(DB_FILE, 'utf-8');
     return JSON.parse(data);
   } catch (err) {
     console.error('Error reading DB, reinitializing...', err);
-    initializeDB(true);
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+    try {
+      initializeDB(true);
+      const data = fs.readFileSync(DB_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (initErr) {
+      console.error('Failed to reinitialize DB from file, using in-memory database:', initErr);
+      return getMemoryFallbackDB();
+    }
   }
 }
 
 function writeDB(data: DatabaseSchema) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to write database to file, using in-memory updates:', err);
+    MEMORY_DB_FALLBACK = data;
+  }
 }
 
 // Security: Check IP blocked
@@ -381,6 +433,12 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
 
 function startServer() {
   app.use(express.json());
+
+  // Log incoming requests for debugging Vercel serverless runs
+  app.use((req, res, next) => {
+    console.log(`[API] ${req.method} ${req.path} (URL: ${req.url})`);
+    next();
+  });
 
   // Rate Limiting (Simple memory-based)
   const ipRequests: { [ip: string]: { count: number; resetTime: number } } = {};
@@ -714,6 +772,28 @@ function startServer() {
       selectedTheme: admin.selectedTheme || 'ngl',
       avatarUrl: admin.avatarUrl || ''
     });
+  });
+
+  // Update public profile theme choice
+  app.put('/api/public/profile/:username/theme', (req, res) => {
+    const username = req.params.username.trim().replace(/^@/, '').toLowerCase();
+    const { theme } = req.body;
+    if (!theme) {
+      res.status(400).json({ error: 'Theme is required' });
+      return;
+    }
+
+    const db = readDB();
+    const admin = db.admins.find(u => u.username.toLowerCase() === username);
+    if (!admin) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    admin.selectedTheme = theme;
+    writeDB(db);
+
+    res.json({ success: true, selectedTheme: theme });
   });
 
   // GET Messages (Moderator & Super Admin Panel)
@@ -1207,6 +1287,14 @@ function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      // Never return index.html for API requests that didn't match any route
+      if (req.path.startsWith('/api')) {
+        res.status(404).json({
+          error: `API endpoint not found: ${req.method} ${req.path}`,
+          success: false
+        });
+        return;
+      }
       try {
         const indexHtml = path.join(distPath, 'index.html');
         if (fs.existsSync(indexHtml)) {
@@ -1219,6 +1307,19 @@ function startServer() {
       }
     });
   }
+
+  // Global Express Error-handling Middleware
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Express caught global error:', err);
+    if (res.headersSent) {
+      return next(err);
+    }
+    res.status(err.status || 500).json({
+      error: err.message || 'An unexpected server error occurred.',
+      success: false,
+      vercel: !!process.env.VERCEL
+    });
+  });
 
   if (!process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {

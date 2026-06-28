@@ -41,6 +41,31 @@ export default function PublicProfile() {
   // Location/coords
   const [coords, setCoords] = useState<{ latitude?: number; longitude?: number }>({});
 
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+
+  const handleThemeChange = async (themeId: string) => {
+    if (!profile) return;
+    
+    // Instant live preview
+    setProfile(prev => prev ? { ...prev, selectedTheme: themeId } : null);
+    
+    setIsSavingTheme(true);
+    try {
+      const response = await fetch(`/api/public/profile/${username.replace(/^@/, '').toLowerCase()}/theme`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: themeId })
+      });
+      if (!response.ok) {
+        console.error('Failed to automatically save selected theme.');
+      }
+    } catch (err) {
+      console.error('Network error saving theme selection:', err);
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
   useEffect(() => {
     if (!username) return;
 
@@ -225,6 +250,40 @@ export default function PublicProfile() {
                       "{profile.bio}"
                     </p>
                   )}
+                </div>
+
+                {/* Horizontally Scrollable Theme Selector */}
+                <div className="w-full bg-black/15 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-white space-y-3 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-85 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-yellow-300" /> Choose Profile Theme
+                    </span>
+                    {isSavingTheme && (
+                      <span className="text-[9px] font-mono opacity-85 bg-white/10 px-2 py-0.5 rounded-md animate-pulse">
+                        Saving...
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1.5 select-none scrollbar-none scroll-smooth">
+                    {CARD_THEMES.map((theme) => {
+                      const isSelected = (profile?.selectedTheme || 'ngl') === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => handleThemeChange(theme.id)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer ${
+                            isSelected
+                              ? 'bg-white text-slate-950 border-white scale-[1.03] shadow-md'
+                              : 'bg-black/25 border-white/10 hover:bg-black/35 hover:border-white/20 text-white'
+                          }`}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded-full ${theme.bgClass} border border-white/20 shrink-0`} />
+                          <span className="truncate max-w-[110px]">{theme.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Premium Interactive Submission Card */}
