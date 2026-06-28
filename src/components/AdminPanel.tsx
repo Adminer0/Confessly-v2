@@ -327,7 +327,15 @@ export default function AdminPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput })
       });
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (!contentType?.includes("application/json")) {
+        const text = await response.text();
+        console.error("Server returned non-JSON response:", text);
+        throw new Error("Server returned non-JSON response. Please ensure your backend is correctly running.");
+      } else {
+        data = await response.json();
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Authentication failed');
@@ -1043,29 +1051,46 @@ export default function AdminPanel() {
                                 <Star className="w-4 h-4 fill-current" />
                               </button>
 
-                              {/* Story generation */}
+                              {/* One-tap Export PNG in original style */}
                               <button
                                 onClick={() => {
-                                  setExportingMessage(msg);
-                                  setSelectedExportTemplate(msg.theme);
+                                  exportCardToPng(
+                                    msg.id,
+                                    msg.message,
+                                    msg.category,
+                                    msg.nickname || 'Anonymous',
+                                    CATEGORY_EMOJIS[msg.category],
+                                    msg.theme,
+                                    undefined,
+                                    'download'
+                                  );
                                 }}
                                 className="p-2.5 bg-slate-50 border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 hover:border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                                title="Export original confession immediately"
                               >
                                 <RefreshCw className="w-4 h-4" />
                                 Export Card PNG
                               </button>
 
-                              {/* Reply button */}
+                              {/* One-tap Instagram Story Reply */}
                               <button
-                                onClick={() => setActiveReplyId(activeReplyId === msg.id ? null : msg.id)}
-                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                  msg.reply
-                                    ? 'bg-purple-50 border-purple-100 text-purple-600'
-                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'
-                                }`}
+                                onClick={() => {
+                                  exportCardToPng(
+                                    msg.id,
+                                    msg.message,
+                                    msg.category,
+                                    msg.nickname || 'Anonymous',
+                                    CATEGORY_EMOJIS[msg.category],
+                                    msg.theme,
+                                    undefined,
+                                    'insta'
+                                  );
+                                }}
+                                className="p-2.5 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 hover:opacity-95 text-white border-0 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                                title="Reply and Share directly to Instagram Stories"
                               >
-                                <MessageSquare className="w-4 h-4" />
-                                {msg.reply ? 'Edit Reply' : 'Add Reply'}
+                                <Instagram className="w-4 h-4" />
+                                Reply
                               </button>
                             </div>
                           </div>
@@ -1102,33 +1127,6 @@ export default function AdminPanel() {
                             )}
                           </div>
                         </div>
-
-                        {/* Inline Reply Form Expand */}
-                        {activeReplyId === msg.id && (
-                          <div className="col-span-1 lg:col-span-3 border-t border-slate-100 pt-4 mt-2 space-y-3 animate-fadeIn">
-                            <label className="block text-xs font-semibold text-purple-600 flex items-center gap-1.5">
-                              <MessageSquare className="w-3.5 h-3.5" />
-                              Write moderator response as @{msg.targetUsername}
-                            </label>
-                            
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Type your reply to this confession..."
-                                value={replyInputMap[msg.id] || msg.reply || ''}
-                                onChange={(e) => setReplyInputMap(prev => ({ ...prev, [msg.id]: e.target.value }))}
-                                className="flex-1 bg-slate-50 border border-slate-200 focus:border-purple-500 rounded-xl py-2 px-4 text-sm text-slate-900 outline-none transition-colors font-medium"
-                              />
-                              <button
-                                onClick={() => handleReplySubmit(msg.id)}
-                                className="bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-                              >
-                                <Check className="w-4 h-4" />
-                                Save
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -1230,236 +1228,6 @@ export default function AdminPanel() {
         </AnimatePresence>
       </main>
 
-      {/* 5-10 SELECTABLE STORY CARD TEMPLATES EXPORT MODAL */}
-      <AnimatePresence>
-        {exportingMessage && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 350, damping: 25 }}
-              className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-2xl shadow-2xl relative flex flex-col md:flex-row gap-6 max-h-[90vh] overflow-y-auto"
-            >
-              {/* Left Column: Live Preview of Card */}
-              <div className="flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 font-mono">Live Story Preview</h3>
-                  
-                  {/* Styled preview card using the currently selected template */}
-                  {(() => {
-                    const temp = EXPORT_TEMPLATES.find(t => t.id === selectedExportTemplate) || EXPORT_TEMPLATES[0];
-                    return (
-                      <div className="space-y-4">
-                        <div className={`rounded-3xl p-6 border shadow-xl relative flex flex-col justify-between transition-all duration-300 ${temp.bgClass} ${temp.borderClass}`}>
-                          <div className="flex justify-between items-center">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold shadow-xs ${temp.badgeClass}`}>
-                              {CATEGORY_EMOJIS[exportingMessage.category]} {exportingMessage.category}
-                            </span>
-                            <span className={`text-xs font-mono font-bold opacity-80 ${temp.textClass}`}>
-                              @{exportingMessage.targetUsername}
-                            </span>
-                          </div>
-                          
-                          <p className={`text-sm font-semibold italic my-6 leading-relaxed break-words text-center ${temp.textClass}`}>
-                            "{exportingMessage.message}"
-                          </p>
-                          
-                          <div className="flex justify-between items-center text-[11px] opacity-75 font-mono">
-                            <span className={temp.textClass}>
-                              by {exportingMessage.nickname || 'Anonymous'}
-                            </span>
-                            <span className={temp.textClass}>
-                              {new Date(exportingMessage.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-
-                        {exportingMessage.reply && (
-                          <div className={`rounded-2xl p-5 shadow-lg border border-slate-200/50 flex flex-col justify-between text-left animate-fadeIn ${
-                            selectedExportTemplate === 'clean' ? 'bg-slate-800 text-white' :
-                            selectedExportTemplate === 'matcha' ? 'bg-emerald-800 text-white' :
-                            selectedExportTemplate === 'bubblegum' ? 'bg-pink-500 text-white' :
-                            selectedExportTemplate === 'gold' ? 'bg-amber-400 text-slate-950 font-semibold' :
-                            'bg-white text-slate-900'
-                          }`}>
-                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">REPLY:</span>
-                            <p className="text-sm font-bold mt-1 break-words">
-                              {exportingMessage.reply}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className="mt-4 text-[11px] text-slate-400 font-sans leading-tight">
-                  💡 Canvas drawings render with premium shadows, typography, and color-matched high-definition borders.
-                </div>
-              </div>
-
-              {/* Right Column: Template Selector & Actions */}
-              <div className="w-full md:w-80 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-rose-600 font-mono">Select Template</h3>
-                    <button
-                      onClick={() => setExportingMessage(null)}
-                      className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-full bg-slate-50 border border-slate-200 hover:bg-slate-100 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-500 mb-4">
-                    Choose from 9 distinct story card templates to apply instantly to the generated image output:
-                  </p>
-
-                  {/* Grid of templates */}
-                  <div className="grid grid-cols-1 gap-2 max-h-[250px] overflow-y-auto pr-1">
-                    {EXPORT_TEMPLATES.map((t) => {
-                      const isSelected = selectedExportTemplate === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={() => setSelectedExportTemplate(t.id)}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all text-xs font-semibold cursor-pointer ${
-                            isSelected
-                              ? 'border-indigo-600 bg-indigo-50/50 text-indigo-950 shadow-xs'
-                              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`w-3.5 h-3.5 rounded-full border border-white/20 ${t.bgClass}`} />
-                            <span>{t.name}</span>
-                          </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-6 space-y-2">
-                  <button
-                    onClick={async () => {
-                      await exportCardToPng(
-                        exportingMessage.id,
-                        exportingMessage.message,
-                        exportingMessage.category,
-                        exportingMessage.nickname || 'Anonymous',
-                        CATEGORY_EMOJIS[exportingMessage.category],
-                        selectedExportTemplate,
-                        exportingMessage.reply,
-                        'insta'
-                      );
-                      setShowInstaInstructions(true);
-                    }}
-                    className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/10 cursor-pointer"
-                  >
-                    <Instagram className="w-4 h-4" />
-                    Share to Instagram Story
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportCardToPng(
-                        exportingMessage.id,
-                        exportingMessage.message,
-                        exportingMessage.category,
-                        exportingMessage.nickname || 'Anonymous',
-                        CATEGORY_EMOJIS[exportingMessage.category],
-                        selectedExportTemplate,
-                        exportingMessage.reply,
-                        'download'
-                      );
-                      setExportingMessage(null);
-                    }}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10 cursor-pointer"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    Generate & Download PNG
-                  </button>
-                  
-                  <button
-                    onClick={() => setExportingMessage(null)}
-                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl text-xs transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* Instagram Instructions Modal Overlay */}
-        <AnimatePresence>
-          {showInstaInstructions && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl relative text-center"
-              >
-                <button
-                  onClick={() => {
-                    setShowInstaInstructions(false);
-                    setExportingMessage(null);
-                  }}
-                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-
-                <div className="mx-auto h-12 w-12 bg-pink-50 border border-pink-100 rounded-2xl flex items-center justify-center text-pink-600 mb-2">
-                  <Instagram className="w-6 h-6" />
-                </div>
-
-                <h3 className="text-base font-bold text-slate-900 font-display">Ready to post on Instagram!</h3>
-                
-                <div className="text-left text-xs text-slate-600 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-sans">
-                  <p className="font-semibold text-slate-800 text-center pb-1">📸 Quick Steps to Post:</p>
-                  <div className="flex gap-2">
-                    <span className="font-bold text-pink-500 font-mono">1.</span>
-                    <span>The custom card image has been prepared and downloaded to your device.</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="font-bold text-pink-500 font-mono">2.</span>
-                    <span>Open the <strong>Instagram app</strong> on your mobile phone.</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="font-bold text-pink-500 font-mono">3.</span>
-                    <span>Tap to <strong>create a Story</strong> and select the downloaded card from your gallery.</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="font-bold text-pink-500 font-mono">4.</span>
-                    <span>Add a Link Sticker with your public handle url to receive more confessions!</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowInstaInstructions(false);
-                    setExportingMessage(null);
-                  }}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
-                >
-                  Got it, let's share!
-                </button>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-
         {/* Onboarding / Link Sharing Modal */}
         <AnimatePresence>
           {showShareModal && (
@@ -1557,42 +1325,43 @@ export default function AdminPanel() {
         </AnimatePresence>
 
         {/* Real-time Toast Notification */}
-        {newConfessionNotification && (
-          <motion.div
-            key="realtime-notification"
-            initial={{ opacity: 0, y: -50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9, y: -20 }}
-            className="fixed top-6 right-6 z-[100] max-w-sm w-full bg-slate-900 text-white rounded-2xl shadow-2xl shadow-slate-950/40 p-4 border border-slate-800 flex items-start gap-3.5"
-          >
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl shrink-0 animate-bounce">
-              💬
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">
-                  New Confession!
-                </span>
-                <button
-                  onClick={() => setNewConfessionNotification(null)}
-                  className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+        <AnimatePresence>
+          {newConfessionNotification && (
+            <motion.div
+              key="realtime-notification"
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              className="fixed top-6 right-6 z-[100] max-w-sm w-full bg-slate-900 text-white rounded-2xl shadow-2xl shadow-slate-950/40 p-4 border border-slate-800 flex items-start gap-3.5"
+            >
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl shrink-0 animate-bounce">
+                💬
               </div>
-              <p className="text-xs font-semibold mt-1 text-slate-100 line-clamp-2">
-                "{newConfessionNotification.message}"
-              </p>
-              <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
-                <span className="bg-slate-800 px-1.5 py-0.5 rounded text-[9px]">
-                  {newConfessionNotification.category}
-                </span>
-                <span>• {newConfessionNotification.nickname || 'Anonymous'}</span>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">
+                    New Confession!
+                  </span>
+                  <button
+                    onClick={() => setNewConfessionNotification(null)}
+                    className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs font-semibold mt-1 text-slate-100 line-clamp-2">
+                  "{newConfessionNotification.message}"
+                </p>
+                <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-[9px]">
+                    {newConfessionNotification.category}
+                  </span>
+                  <span>• {newConfessionNotification.nickname || 'Anonymous'}</span>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </div>
   );
 }

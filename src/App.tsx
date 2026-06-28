@@ -95,7 +95,16 @@ function HomeLanding() {
         body: JSON.stringify({ username: cleanUsername, password })
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (!contentType?.includes("application/json")) {
+        const text = await response.text();
+        console.error("Server returned non-JSON response:", text);
+        throw new Error("Server returned non-JSON response. Please ensure your backend is correctly running.");
+      } else {
+        data = await response.json();
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Something went wrong.');
       }

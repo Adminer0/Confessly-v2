@@ -367,7 +367,7 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
   next();
 }
 
-async function startServer() {
+function startServer() {
   app.use(express.json());
 
   // Rate Limiting (Simple memory-based)
@@ -1131,12 +1131,14 @@ async function startServer() {
 
   // Vite development routing & static routing
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+    import('vite').then(({ createServer: createViteServer }) => {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      }).then((vite) => {
+        app.use(vite.middlewares);
+      });
     });
-    app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
