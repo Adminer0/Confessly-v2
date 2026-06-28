@@ -22,106 +22,116 @@ export async function exportCardToPng(
   // Draw background based on theme
   const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
   
-  if (themeId === 'sunset') {
-    grad.addColorStop(0, '#ec4899'); // pink-500
-    grad.addColorStop(0.5, '#ef4444'); // red-500
-    grad.addColorStop(1, '#eab308'); // yellow-500
+  if (themeId === 'ngl') {
+    grad.addColorStop(0, '#fe3b30');
+    grad.addColorStop(0.5, '#ff5e36');
+    grad.addColorStop(1, '#ff9500');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1080, 1920);
-  } else if (themeId === 'ocean') {
-    grad.addColorStop(0, '#06b6d4'); // cyan-500
-    grad.addColorStop(0.5, '#3b82f6'); // blue-500
-    grad.addColorStop(1, '#10b981'); // emerald-500
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
-  } else if (themeId === 'fire') {
-    grad.addColorStop(0, '#1c1917'); // stone-900
-    grad.addColorStop(0.5, '#450a0a'); // red-950
-    grad.addColorStop(1, '#b91c1c'); // red-700
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
-  } else if (themeId === 'cosmic') {
-    grad.addColorStop(0, '#1e1b4b'); // indigo-950
-    grad.addColorStop(0.5, '#090d16'); // dark space
-    grad.addColorStop(1, '#4c1d95'); // purple-950
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
-    
-    // Draw star/dust circles
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    for (let i = 0; i < 40; i++) {
-      const starX = Math.random() * 1080;
-      const starY = Math.random() * 1920;
-      const starR = Math.random() * 3 + 1;
-      ctx.beginPath();
-      ctx.arc(starX, starY, starR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (themeId === 'matcha') {
-    grad.addColorStop(0, '#f0fdf4'); // green-50
-    grad.addColorStop(1, '#dcfce7'); // green-100
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
-  } else if (themeId === 'bubblegum') {
-    grad.addColorStop(0, '#fce7f3'); // pink-100
-    grad.addColorStop(0.5, '#fae8ff'); // purple-100
-    grad.addColorStop(1, '#e0e7ff'); // indigo-100
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
-  } else if (themeId === 'clean') {
-    // Swiss Minimalist (snow white background)
+  } else if (themeId === 'minimal_white') {
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, 1080, 1920);
-    
-    // Draw subtle abstract grid lines
-    ctx.strokeStyle = 'rgba(15, 23, 42, 0.03)';
-    ctx.lineWidth = 4;
-    for (let x = 120; x < 1080; x += 120) {
+  } else if (themeId === 'midnight_black') {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'purple_neon') {
+    ctx.fillStyle = '#0a001a';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'ocean_blue') {
+    grad.addColorStop(0, '#082f49');
+    grad.addColorStop(0.5, '#1e3a8a');
+    grad.addColorStop(1, '#1e1b4b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'forest_green') {
+    grad.addColorStop(0, '#022c22');
+    grad.addColorStop(0.5, '#064e3b');
+    grad.addColorStop(1, '#115e59');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'sunset_orange') {
+    grad.addColorStop(0, '#7c2d12');
+    grad.addColorStop(0.5, '#450a0a');
+    grad.addColorStop(1, '#1c1917');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'rose_pink') {
+    grad.addColorStop(0, '#be185d');
+    grad.addColorStop(0.5, '#9f1239');
+    grad.addColorStop(1, '#be123c');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'cyberpunk') {
+    ctx.fillStyle = '#f3f019';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'glassmorphism') {
+    grad.addColorStop(0, '#e0e7ff');
+    grad.addColorStop(0.5, '#f3e8ff');
+    grad.addColorStop(1, '#fce7f3');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'dark_glass') {
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'aurora') {
+    grad.addColorStop(0, '#02111d');
+    grad.addColorStop(0.5, '#012538');
+    grad.addColorStop(1, '#014163');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'space') {
+    grad.addColorStop(0, '#020617');
+    grad.addColorStop(0.5, '#0e001f');
+    grad.addColorStop(1, '#18181b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'matrix') {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 1080, 1920);
+    // Draw matrix style vertical lines
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.05)';
+    ctx.lineWidth = 2;
+    for (let x = 40; x < 1080; x += 80) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, 1920);
       ctx.stroke();
     }
-  } else if (themeId === 'gold') {
-    // Luxury Gold Theme
-    grad.addColorStop(0, '#09090b'); // zinc-950
-    grad.addColorStop(1, '#18181b'); // zinc-900
+  } else if (themeId === 'monochrome') {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'material_design') {
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'pastel') {
+    grad.addColorStop(0, '#fce7f3');
+    grad.addColorStop(0.5, '#f3e8ff');
+    grad.addColorStop(1, '#dbeafe');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1080, 1920);
-    
-    // Draw luxury double thin borders
-    ctx.strokeStyle = '#d4af37';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(40, 40, 1000, 1840);
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(48, 48, 984, 1824);
-  } else {
-    // Neon Cyberpunk fallback
-    ctx.fillStyle = '#090514';
+  } else if (themeId === 'retro') {
+    grad.addColorStop(0, '#0f051d');
+    grad.addColorStop(0.5, '#1e052d');
+    grad.addColorStop(1, '#33001a');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1080, 1920);
-    
-    // Cyberpunk grids
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.1)';
-    ctx.lineWidth = 2;
-    for (let y = 0; y < 1920; y += 80) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(1080, y);
-      ctx.stroke();
-    }
-  }
-
-  // Draw outer neon border for neon theme
-  if (themeId === 'neon') {
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(40, 40, 1000, 1840);
-    
-    // Glow effect
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
-    ctx.lineWidth = 20;
-    ctx.strokeRect(40, 40, 1000, 1840);
+  } else if (themeId === 'gaming') {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'anime_inspired') {
+    grad.addColorStop(0, '#ffdeeb');
+    grad.addColorStop(1, '#e4efff');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else if (themeId === 'aesthetic_beige') {
+    ctx.fillStyle = '#f5ebe0';
+    ctx.fillRect(0, 0, 1080, 1920);
+  } else {
+    // fallback
+    grad.addColorStop(0, '#fe3b30');
+    grad.addColorStop(1, '#ff9500');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
   }
 
   // Define Overlay Card Dimensions
@@ -132,13 +142,20 @@ export async function exportCardToPng(
   const cornerRadius = 48;
 
   // Set Card Background
-  if (themeId === 'clean') {
+  if (themeId === 'cyberpunk' || themeId === 'monochrome') {
+    ctx.fillStyle = '#000000';
+  } else if (themeId === 'minimal_white' || themeId === 'material_design' || themeId === 'anime_inspired') {
     ctx.fillStyle = '#ffffff';
-  } else if (themeId === 'gold') {
-    ctx.fillStyle = 'rgba(12, 12, 14, 0.95)';
-  } else if (themeId === 'matcha' || themeId === 'bubblegum') {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  } else if (themeId === 'midnight_black' || themeId === 'gaming') {
+    ctx.fillStyle = '#171717';
+  } else if (themeId === 'aesthetic_beige') {
+    ctx.fillStyle = 'rgba(227, 213, 202, 0.75)';
+  } else if (themeId === 'glassmorphism' || themeId === 'pastel') {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  } else if (themeId === 'matrix') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
   } else {
+    // Glassy default
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
   }
 
@@ -148,56 +165,89 @@ export async function exportCardToPng(
   ctx.fill();
 
   // Draw Card Border
-  if (themeId === 'clean') {
-    ctx.strokeStyle = '#e2e8f0';
+  if (themeId === 'cyberpunk') {
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 10;
+  } else if (themeId === 'monochrome') {
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 6;
+  } else if (themeId === 'minimal_white' || themeId === 'material_design' || themeId === 'anime_inspired' || themeId === 'aesthetic_beige') {
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.lineWidth = 2;
+  } else if (themeId === 'matrix') {
+    ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 3;
-  } else if (themeId === 'gold') {
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-    ctx.lineWidth = 2;
-  } else if (themeId === 'matcha') {
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
-    ctx.lineWidth = 2;
+  } else if (themeId === 'retro') {
+    ctx.strokeStyle = '#ec4899';
+    ctx.lineWidth = 5;
+  } else if (themeId === 'purple_neon') {
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+    ctx.lineWidth = 3;
   } else {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.lineWidth = 2;
   }
   ctx.stroke();
 
-  // Color Configuration
+  // Color Configuration for texts/badges
   let textColor = '#ffffff';
   let badgeTextColor = '#ffffff';
   let badgeBg = 'rgba(255, 255, 255, 0.18)';
   let watermarkColor = 'rgba(255, 255, 255, 0.5)';
   let watermarkSubColor = 'rgba(255, 255, 255, 0.35)';
 
-  if (themeId === 'matcha') {
-    textColor = '#064e3b';
-    badgeTextColor = '#065f46';
-    badgeBg = 'rgba(4, 120, 87, 0.08)';
-    watermarkColor = 'rgba(6, 78, 59, 0.6)';
-    watermarkSubColor = 'rgba(6, 78, 59, 0.4)';
-  } else if (themeId === 'bubblegum') {
+  if (themeId === 'minimal_white' || themeId === 'material_design') {
     textColor = '#0f172a';
-    badgeTextColor = '#1e293b';
-    badgeBg = 'rgba(15, 23, 42, 0.06)';
-    watermarkColor = 'rgba(15, 23, 42, 0.5)';
-    watermarkSubColor = 'rgba(15, 23, 42, 0.35)';
-  } else if (themeId === 'clean') {
-    textColor = '#0f172a'; // Slate-900
-    badgeTextColor = '#0f172a';
+    badgeTextColor = '#475569';
     badgeBg = '#f1f5f9';
-    watermarkColor = '#0f172a';
-    watermarkSubColor = '#64748b';
-  } else if (themeId === 'gold') {
-    textColor = '#fafafa';
-    badgeTextColor = '#fbbf24'; // amber-400
-    badgeBg = 'rgba(212, 175, 55, 0.12)';
-    watermarkColor = '#fbbf24';
-    watermarkSubColor = 'rgba(212, 175, 55, 0.6)';
-  } else if (themeId === 'neon') {
-    textColor = '#f3e8ff';
-    badgeTextColor = '#e9d5ff';
-    badgeBg = 'rgba(168, 85, 247, 0.18)';
+    watermarkColor = 'rgba(15, 23, 42, 0.6)';
+    watermarkSubColor = 'rgba(15, 23, 42, 0.4)';
+  } else if (themeId === 'monochrome') {
+    textColor = '#ffffff';
+    badgeTextColor = '#000000';
+    badgeBg = '#ffffff';
+    watermarkColor = '#000000';
+    watermarkSubColor = '#52525b';
+  } else if (themeId === 'cyberpunk') {
+    textColor = '#ffffff';
+    badgeTextColor = '#000000';
+    badgeBg = '#f3f019';
+    watermarkColor = '#000000';
+    watermarkSubColor = '#1c1917';
+  } else if (themeId === 'matrix') {
+    textColor = '#00ff00';
+    badgeTextColor = '#00ff00';
+    badgeBg = 'rgba(0, 255, 0, 0.1)';
+    watermarkColor = '#00ff00';
+    watermarkSubColor = '#008800';
+  } else if (themeId === 'anime_inspired') {
+    textColor = '#2d2238';
+    badgeTextColor = '#ff3a89';
+    badgeBg = '#ffd9e8';
+    watermarkColor = '#ff5a9d';
+    watermarkSubColor = 'rgba(255, 90, 157, 0.6)';
+  } else if (themeId === 'aesthetic_beige') {
+    textColor = '#4f3422';
+    badgeTextColor = '#4f3422';
+    badgeBg = '#e3d5ca';
+    watermarkColor = '#4f3422';
+    watermarkSubColor = '#a28a76';
+  } else if (themeId === 'glassmorphism' || themeId === 'pastel') {
+    textColor = '#1e1b4b';
+    badgeTextColor = '#4f46e5';
+    badgeBg = '#e0e7ff';
+    watermarkColor = '#4f46e5';
+    watermarkSubColor = '#818cf8';
+  } else if (themeId === 'retro') {
+    textColor = '#f472b6';
+    badgeTextColor = '#22d3ee';
+    badgeBg = 'rgba(34, 211, 238, 0.15)';
+    watermarkColor = '#ec4899';
+    watermarkSubColor = '#22d3ee';
+  } else if (themeId === 'gaming') {
+    textColor = '#f5f5f5';
+    badgeTextColor = '#ef4444';
+    badgeBg = 'rgba(239, 68, 68, 0.12)';
   }
 
   // Draw Badge (Category)

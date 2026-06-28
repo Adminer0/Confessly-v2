@@ -13,7 +13,8 @@ import { exportCardToPng } from '../utils.js';
 import {
   Lock, CheckCircle, Trash2, Star, MessageSquare, ShieldAlert,
   Search, SlidersHorizontal, Eye, RefreshCw, BarChart3, Inbox,
-  Compass, Laptop, MapPin, KeyRound, LogOut, Check, X, ArrowLeft, Instagram
+  Compass, Laptop, MapPin, KeyRound, LogOut, Check, X, ArrowLeft, Instagram,
+  User, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -60,9 +61,76 @@ export default function AdminPanel() {
   // Impersonation & Export Modal States
   const [impersonatedBySu, setImpersonatedBySu] = useState(false);
   const [impersonatedCoords, setImpersonatedCoords] = useState<{ latitude?: number; longitude?: number; username?: string }>({});
-  const [exportingMessage, setExportingMessage] = useState<Message | null>(null);
-  const [selectedExportTemplate, setSelectedExportTemplate] = useState<string>('sunset');
   const [showInstaInstructions, setShowInstaInstructions] = useState(false);
+
+  // Profile customization states
+  const [profileDisplayName, setProfileDisplayName] = useState('');
+  const [profileBio, setProfileBio] = useState('');
+  const [profileTheme, setProfileTheme] = useState('ngl');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+
+  const loadProfile = async () => {
+    if (!authToken) return;
+    try {
+      const response = await fetch('/api/admin/profile', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProfileDisplayName(data.displayName || '');
+        setProfileBio(data.bio || '');
+        setProfileTheme(data.selectedTheme || 'ngl');
+        setProfileAvatarUrl(data.avatarUrl || '');
+      }
+    } catch (err) {
+      console.error('Error loading admin profile settings:', err);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authToken) return;
+    setIsSavingProfile(true);
+    setProfileSaveSuccess(false);
+    setProfileSaveError(null);
+
+    try {
+      const response = await fetch('/api/admin/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          displayName: profileDisplayName,
+          bio: profileBio,
+          selectedTheme: profileTheme,
+          avatarUrl: profileAvatarUrl
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save profile settings.');
+      }
+
+      setProfileSaveSuccess(true);
+      setTimeout(() => setProfileSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setProfileSaveError(err.message || 'Error occurred while saving profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminUser) {
+      loadProfile();
+    }
+  }, [adminUser, authToken]);
 
   // Live Notification, Seen Set and Trash Deletion States
   const [newConfessionNotification, setNewConfessionNotification] = useState<Message | null>(null);
@@ -694,6 +762,21 @@ export default function AdminPanel() {
               )}
             </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`pb-4 text-sm font-semibold relative cursor-pointer ${
+              activeTab === 'profile' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <User className="w-4 h-4" />
+              Customize Profile
+            </span>
+            {activeTab === 'profile' && (
+              <motion.div layoutId="activeTabIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600" />
+            )}
+          </button>
         </div>
 
         <AnimatePresence mode="wait">
@@ -1133,7 +1216,7 @@ export default function AdminPanel() {
                 </div>
               )}
             </motion.div>
-          ) : (
+          ) : activeTab === 'analytics' ? (
             <motion.div
               key="analytics-tab"
               initial={{ opacity: 0, y: 15 }}
@@ -1223,6 +1306,247 @@ export default function AdminPanel() {
                   </div>
                 </div>
               )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="profile-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35, ease: [0.25, 0.8, 0.25, 1] }}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left"
+            >
+              {/* Profile Fields & Editor Form */}
+              <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xl shadow-slate-200/40 space-y-6">
+                <div className="border-b border-slate-100 pb-4">
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-1.5">
+                    <User className="w-5 h-5 text-indigo-600" />
+                    Profile Customization Details
+                  </h3>
+                  <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
+                    Personalize your public anonymous card link. Visitors will see your custom name, avatar, bio description, and themed design.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSaveProfile} className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Display Name Input */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="p-displayName" className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        Display Name
+                      </label>
+                      <input
+                        id="p-displayName"
+                        type="text"
+                        required
+                        maxLength={35}
+                        placeholder="e.g. Shiva"
+                        value={profileDisplayName}
+                        onChange={(e) => setProfileDisplayName(e.target.value)}
+                        className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white rounded-xl py-2.5 px-4 text-xs font-semibold text-slate-900 outline-none border border-slate-200 focus:border-indigo-600 transition-all shadow-xs"
+                      />
+                    </div>
+
+                    {/* Avatar Image URL */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="p-avatarUrl" className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        Avatar Image URL (Optional)
+                      </label>
+                      <input
+                        id="p-avatarUrl"
+                        type="url"
+                        placeholder="e.g. https://example.com/avatar.jpg"
+                        value={profileAvatarUrl}
+                        onChange={(e) => setProfileAvatarUrl(e.target.value)}
+                        className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white rounded-xl py-2.5 px-4 text-xs font-semibold text-slate-900 outline-none border border-slate-200 focus:border-indigo-600 transition-all shadow-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bio Area */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="p-bio" className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      Optional Biography / Caption
+                    </label>
+                    <textarea
+                      id="p-bio"
+                      rows={2}
+                      maxLength={120}
+                      placeholder="e.g. send me juicy roasts or ask me anything! 🤫"
+                      value={profileBio}
+                      onChange={(e) => setProfileBio(e.target.value)}
+                      className="w-full bg-slate-50 hover:bg-slate-100/60 focus:bg-white rounded-xl py-2.5 px-4 text-xs font-semibold text-slate-900 outline-none border border-slate-200 focus:border-indigo-600 transition-all resize-none shadow-xs"
+                    />
+                    <div className="flex justify-end">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {profileBio.length} / 120
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Profile Theme Grid Picker */}
+                  <div className="space-y-2.5 pt-2">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                      <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        Choose Premium Theme ({CARD_THEMES.length} options)
+                      </label>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] uppercase tracking-wider font-extrabold">
+                        <Sparkles className="w-2.5 h-2.5" /> High Customization
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
+                      {CARD_THEMES.map((theme) => {
+                        const isSelected = profileTheme === theme.id;
+                        return (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            onClick={() => {
+                              setProfileTheme(theme.id);
+                              setProfileSaveError(null);
+                            }}
+                            className={`relative p-3 rounded-2xl text-left border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden h-24 ${theme.bgClass} ${
+                              isSelected
+                                ? 'border-indigo-600 scale-[1.02] shadow-md ring-3 ring-indigo-600/15'
+                                : 'border-slate-100 hover:border-slate-300 hover:scale-[1.01]'
+                            }`}
+                          >
+                            <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+                            <div className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md inline-block backdrop-blur-md self-start border ${
+                              theme.id === 'cyberpunk' ? 'bg-black text-white border-black/10' : 'bg-white/20 text-white border-white/15'
+                            }`}>
+                              {theme.name}
+                            </div>
+                            <span className={`text-[9px] font-bold tracking-tight drop-shadow-xs truncate w-full ${
+                              theme.id === 'cyberpunk' ? 'text-black' : 'text-white'
+                            }`}>
+                              @{adminUser?.username || 'username'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Feedback Status */}
+                  {profileSaveSuccess && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>Changes saved successfully! Your public page was updated instantly.</span>
+                    </div>
+                  )}
+
+                  {profileSaveError && (
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>{profileSaveError}</span>
+                    </div>
+                  )}
+
+                  {/* Save profile actions */}
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-extrabold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/10"
+                    >
+                      {isSavingProfile ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Side Visual Live Preview panel */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-5 shadow-inner space-y-4 text-center">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3 text-left">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Live Device Preview</span>
+                  <span className="text-[9px] font-mono bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-extrabold uppercase">Real-time</span>
+                </div>
+
+                {/* Simulated Mobile Mock Container */}
+                <div className="relative border-4 border-slate-900 rounded-[38px] p-2 bg-slate-900 shadow-2xl max-w-xs mx-auto aspect-[9/16] overflow-hidden flex flex-col justify-between animate-fade-in">
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 w-24 h-4.5 bg-slate-950 rounded-full z-20 flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 bg-slate-900 rounded-full mr-2" />
+                    <div className="w-1.5 h-1.5 bg-slate-900 rounded-full" />
+                  </div>
+
+                  {/* Theme background simulator */}
+                  {(() => {
+                    const previewThemeObj = CARD_THEMES.find(t => t.id === profileTheme) || CARD_THEMES[0];
+                    return (
+                      <div className={`flex-1 rounded-[30px] p-4 flex flex-col justify-between relative transition-all duration-300 overflow-hidden ${previewThemeObj.bgClass}`}>
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15)_0%,transparent_80%)] pointer-events-none" />
+                        
+                        <div className="mt-8 flex flex-col items-center text-center space-y-1.5 text-white">
+                          {/* Simulated Avatar */}
+                          {profileAvatarUrl ? (
+                            <img
+                              src={profileAvatarUrl}
+                              alt="preview"
+                              referrerPolicy="no-referrer"
+                              className="h-12 w-12 rounded-full border border-white object-cover shadow-sm"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 bg-white text-slate-900 rounded-full border border-white flex items-center justify-center font-black text-base shadow-sm">
+                              {(profileDisplayName || adminUser?.username || 'A').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          <div className="space-y-0.5">
+                            <h4 className="text-xs font-extrabold tracking-tight drop-shadow-xs">
+                              {profileDisplayName || adminUser?.username}
+                            </h4>
+                            <p className="text-[8px] font-mono tracking-wider opacity-80">
+                              @{adminUser?.username}
+                            </p>
+                          </div>
+
+                          {profileBio && (
+                            <p className="text-[8px] opacity-75 max-w-[140px] truncate leading-tight italic drop-shadow-xs">
+                              "{profileBio}"
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Interactive Speech Card */}
+                        <div className={`rounded-2xl p-3.5 shadow-xl border flex flex-col justify-between relative transition-all duration-300 text-left ${previewThemeObj.cardBgClass} ${previewThemeObj.borderClass}`}>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[7px] uppercase tracking-wider font-extrabold ${previewThemeObj.badgeClass}`}>
+                              🤫 Confession
+                            </span>
+                          </div>
+
+                          <h5 className={`text-[10px] font-extrabold leading-tight mb-2 ${previewThemeObj.textClass}`}>
+                            Send me anonymous messages!
+                          </h5>
+
+                          <div className="bg-black/5 rounded-xl p-2.5 text-[8px] font-bold text-slate-400">
+                            type something honest...
+                          </div>
+
+                          <div className="mt-3.5">
+                            <div className={`w-full font-extrabold py-2 px-3 rounded-xl transition-all flex items-center justify-center text-[8px] uppercase tracking-wider ${previewThemeObj.buttonClass}`}>
+                              Send Message!
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className="text-[6px] text-white/50 tracking-wider">
+                          Guaranteed 100% Anonymous. Powered by Confessly.
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

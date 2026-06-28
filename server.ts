@@ -17,7 +17,19 @@ if (process.env.VERCEL || process.env.NOW_BUILDER) {
   const tempDbPath = path.join('/tmp', 'db.json');
   if (!fs.existsSync(tempDbPath)) {
     try {
-      const sourceDbPath = path.join(process.cwd(), 'data', 'db.json');
+      // Look in multiple potential directory locations in Serverless context
+      let sourceDbPath = path.join(process.cwd(), 'data', 'db.json');
+      if (!fs.existsSync(sourceDbPath)) {
+        sourceDbPath = path.join(process.cwd(), '..', 'data', 'db.json');
+      }
+      if (!fs.existsSync(sourceDbPath)) {
+        sourceDbPath = path.join(process.cwd(), 'api', 'data', 'db.json');
+      }
+      if (!fs.existsSync(sourceDbPath)) {
+        // Fallback: search relative to this file
+        sourceDbPath = path.join(new URL('.', import.meta.url).pathname, 'data', 'db.json');
+      }
+
       if (fs.existsSync(sourceDbPath)) {
         fs.mkdirSync(path.dirname(tempDbPath), { recursive: true });
         fs.copyFileSync(sourceDbPath, tempDbPath);
@@ -686,24 +698,22 @@ function startServer() {
     res.json({ messages: publicMessages });
   });
 
-  // Get User profile public confessions (Approved only)
+  // Get User profile public confessions (Approved only) - UPDATED: returns profile details only, no messages publicly
   app.get('/api/public/profile/:username', (req, res) => {
     const username = req.params.username.trim().replace(/^@/, '').toLowerCase();
     const db = readDB();
-    const publicMessages = db.messages
-      .filter(m => m.targetUsername === username && m.status === 'approved')
-      .map(m => ({
-        id: m.id,
-        message: m.message,
-        category: m.category,
-        emoji: m.emoji,
-        theme: m.theme,
-        nickname: m.nickname,
-        reply: m.reply,
-        createdAt: m.createdAt
-      }));
-
-    res.json({ messages: publicMessages });
+    const admin = db.admins.find(u => u.username.toLowerCase() === username);
+    if (!admin) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      username: admin.username,
+      displayName: admin.displayName || admin.username,
+      bio: admin.bio || 'Send me anonymous messages! 🤫',
+      selectedTheme: admin.selectedTheme || 'ngl',
+      avatarUrl: admin.avatarUrl || ''
+    });
   });
 
   // GET Messages (Moderator & Super Admin Panel)
@@ -1112,6 +1122,57 @@ function startServer() {
     res.json({ success: true, settings: db.settings });
   });
 
+  // Get current logged-in admin's profile customization details
+  app.get('/api/admin/profile', authenticate, (req, res) => {
+    const session = (req as any).userSession;
+    const db = readDB();
+    const admin = db.admins.find(u => u.id === session.userId);
+    if (!admin) {
+      res.status(404).json({ error: 'Admin user not found' });
+      return;
+    }
+    res.json({
+      username: admin.username,
+      displayName: admin.displayName || admin.username,
+      bio: admin.bio || '',
+      selectedTheme: admin.selectedTheme || 'ngl',
+      avatarUrl: admin.avatarUrl || ''
+    });
+  });
+
+  // Update current logged-in admin's profile customization details
+  app.put('/api/admin/profile', authenticate, (req, res) => {
+    const session = (req as any).userSession;
+    const ip = getClientIp(req);
+    const { displayName, bio, selectedTheme, avatarUrl } = req.body;
+    
+    const db = readDB();
+    const admin = db.admins.find(u => u.id === session.userId);
+    if (!admin) {
+      res.status(404).json({ error: 'Admin user not found' });
+      return;
+    }
+
+    if (displayName !== undefined) admin.displayName = displayName.trim();
+    if (bio !== undefined) admin.bio = bio.trim();
+    if (selectedTheme !== undefined) admin.selectedTheme = selectedTheme;
+    if (avatarUrl !== undefined) admin.avatarUrl = avatarUrl.trim();
+
+    writeDB(db);
+    logAudit(session.username, 'UPDATE_ADMIN_PROFILE', ip, `Updated personal profile settings for admin "${admin.username}"`);
+    
+    res.json({
+      success: true,
+      profile: {
+        username: admin.username,
+        displayName: admin.displayName || admin.username,
+        bio: admin.bio || '',
+        selectedTheme: admin.selectedTheme || 'ngl',
+        avatarUrl: admin.avatarUrl || ''
+      }
+    });
+  });
+
   // Get system server stats (realistic mock dashboard details)
   app.get('/api/su/server-stats', authenticate, requireSuperAdmin, (req, res) => {
     const db = readDB();
@@ -1131,19 +1192,31 @@ function startServer() {
 
   // Vite development routing & static routing
   if (process.env.NODE_ENV !== 'production') {
-    import('vite').then(({ createServer: createViteServer }) => {
+    const viteKey = 'vite';
+    import(viteKey).then(({ createServer: createViteServer }) => {
       createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
       }).then((vite) => {
         app.use(vite.middlewares);
       });
+    }).catch(err => {
+      console.error('Failed to start development Vite server', err);
     });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      try {
+        const indexHtml = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexHtml)) {
+          res.sendFile(indexHtml);
+        } else {
+          res.status(200).send('Confessly static server is active. Ensure front-end assets are built.');
+        }
+      } catch (err) {
+        res.status(500).send('Static client asset routing error.');
+      }
     });
   }
 

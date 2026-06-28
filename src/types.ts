@@ -43,6 +43,10 @@ export interface AdminUser {
   passwordHash: string;
   disabled: boolean;
   permissions: string[]; // e.g. ['moderate', 'analytics']
+  displayName?: string;
+  bio?: string;
+  selectedTheme?: string;
+  avatarUrl?: string;
   lastActive?: string;
   ip?: string;
   browser?: string;

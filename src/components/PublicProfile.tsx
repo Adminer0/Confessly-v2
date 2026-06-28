@@ -5,29 +5,41 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from './Router.jsx';
-import { CARD_THEMES, CATEGORY_EMOJIS, CATEGORIES } from '../constants.js';
-import { Message, Category } from '../types.js';
-import VisitorSubmission from './VisitorSubmission.jsx';
-import { Share2, Sparkles, AlertCircle, MessageSquare, Copy, Check, Filter, Heart, ArrowLeft, Send } from 'lucide-react';
+import { CARD_THEMES, CATEGORIES, CATEGORY_EMOJIS } from '../constants.js';
+import { Category } from '../types.js';
+import { Share2, Sparkles, AlertCircle, Copy, Check, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { exportCardToPng } from '../utils.js'; // Let's define this helper in a utils.ts file next!
 
 export default function PublicProfile() {
   const { params, navigate } = useRouter();
   const username = params.username || '';
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Profile data state
+  const [profile, setProfile] = useState<{
+    username: string;
+    displayName: string;
+    bio: string;
+    selectedTheme: string;
+    avatarUrl: string;
+  } | null>(null);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Submission states
+  const [message, setMessage] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<Category>('Confession');
+  const [nickname, setNickname] = useState('');
   
-  // Filtering
-  const [activeFilter, setActiveFilter] = useState<string>('all');
-  
-  // Drawer / Interactive flow for direct submission on this page!
-  const [showSubmissionDrawer, setShowSubmissionDrawer] = useState(false);
-  
-  // Copy state
+  // UI states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [autoBlocked, setAutoBlocked] = useState(false);
+
+  // Location/coords
+  const [coords, setCoords] = useState<{ latitude?: number; longitude?: number }>({});
 
   useEffect(() => {
     if (!username) return;
@@ -35,11 +47,11 @@ export default function PublicProfile() {
     setLoading(true);
     fetch(`/api/public/profile/${username}`)
       .then((res) => {
-        if (!res.ok) throw new Error('Could not fetch this board. Please check the URL.');
+        if (!res.ok) throw new Error('Could not find this profile. Please check the username.');
         return res.json();
       })
       .then((data) => {
-        setMessages(data.messages || []);
+        setProfile(data);
         setError(null);
         setLoading(false);
       })
@@ -47,9 +59,25 @@ export default function PublicProfile() {
         setError(err.message);
         setLoading(false);
       });
+
+    // Request geolocation
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCoords({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn('Geolocation access skipped or denied', error);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
   }, [username]);
 
-  const copyBoardLink = () => {
+  const copyProfileLink = () => {
     const link = `${window.location.origin}/@${username}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true);
@@ -57,256 +85,304 @@ export default function PublicProfile() {
     });
   };
 
-  const filteredMessages = activeFilter === 'all'
-    ? messages
-    : messages.filter(m => m.category === activeFilter);
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    if (text.length <= 300) {
+      setMessage(text);
+    }
+  };
 
-  // Stats
-  const totalReceived = messages.length;
-  const totalReplies = messages.filter(m => m.reply).length;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) {
+      setSubmitError('The message cannot be empty.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const payload = {
+      targetUsername: username.replace(/^@/, '').toLowerCase(),
+      message: message.trim(),
+      category: selectedCategory,
+      emoji: CATEGORY_EMOJIS[selectedCategory],
+      theme: profile?.selectedTheme || 'ngl',
+      nickname: nickname.trim() || undefined,
+      resolution: `${window.screen.width}x${window.screen.height}`,
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      latitude: coords.latitude,
+      longitude: coords.longitude
+    };
+
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit confession. Please try again.');
+      }
+
+      setIsSubmitting(false);
+      setSubmitSuccess(true);
+      setAutoBlocked(!!data.autoBlocked);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setSubmitError(err.message || 'Network error occurred. Please try again.');
+    }
+  };
+
+  // Resolve active theme configuration or fallback to first theme
+  const activeTheme = CARD_THEMES.find(t => t.id === profile?.selectedTheme) || CARD_THEMES[0];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Decorative Grid Lines background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
+    <div className={`min-h-screen relative flex flex-col justify-between transition-colors duration-500 overflow-hidden ${activeTheme.bgClass}`}>
+      {/* Dynamic Background Accents */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15)_0%,transparent_80%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_40%,rgba(0,0,0,0.1)_100%)] pointer-events-none" />
 
-      <div className="relative max-w-4xl mx-auto py-12 px-4 sm:px-6">
-        
-        {/* Navigation back */}
+      {/* Header with quick navigations */}
+      <header className="relative z-10 px-6 py-4 flex items-center justify-between">
         <button
           onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 mb-8 group transition-colors text-sm cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-white/80 hover:text-white transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Home
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Home
         </button>
+        <span className="text-[10px] font-mono tracking-widest text-white/50 uppercase">Confessly App</span>
+      </header>
 
+      {/* Main Container */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 max-w-lg mx-auto w-full py-8">
+        
         {loading ? (
-          <div className="min-h-[400px] flex flex-col items-center justify-center gap-3">
-            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-mono text-slate-500">Retrieving @{username}'s Board...</p>
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-white">
+            <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-mono tracking-wider opacity-80">Loading @{username}...</p>
           </div>
-        ) : error ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center max-w-md mx-auto my-12 shadow-xl shadow-slate-200/50">
-            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Error Loading Board</h2>
-            <p className="text-slate-500 text-sm mb-6">{error}</p>
+        ) : error || !profile ? (
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 text-center text-white shadow-2xl max-w-sm w-full">
+            <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+            <h2 className="text-lg font-bold mb-2">Profile Unavailable</h2>
+            <p className="text-white/70 text-xs leading-relaxed mb-6">
+              {error || 'This user profile does not exist.'}
+            </p>
             <button
               onClick={() => navigate('/')}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all cursor-pointer"
+              className="w-full bg-white text-slate-900 font-semibold py-2.5 rounded-xl text-xs hover:bg-slate-100 transition-all cursor-pointer"
             >
-              Back Home
+              Go Back Home
             </button>
           </div>
         ) : (
-          <div className="space-y-10">
-            {/* Header Header Info */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 shadow-xl shadow-slate-200/50 backdrop-blur-md">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center font-display font-black text-2xl text-indigo-600">
-                    @{username.substring(0, 2).toUpperCase()}
+          <AnimatePresence mode="wait">
+            {!submitSuccess ? (
+              <motion.div
+                key="submission-card-view"
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -15 }}
+                transition={{ duration: 0.4, ease: [0.25, 0.8, 0.25, 1] }}
+                className="w-full space-y-6"
+              >
+                {/* Profile Identity Details */}
+                <div className="flex flex-col items-center text-center space-y-2 mb-2 text-white">
+                  {/* High Contrast Avatar with initials */}
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-white/25 rounded-full blur-xs group-hover:blur-sm transition-all" />
+                    {profile.avatarUrl ? (
+                      <img
+                        src={profile.avatarUrl}
+                        alt={profile.displayName}
+                        referrerPolicy="no-referrer"
+                        className="relative h-20 w-20 rounded-full border-2 border-white object-cover shadow-lg"
+                      />
+                    ) : (
+                      <div className="relative h-20 w-20 bg-white text-slate-900 rounded-full border-2 border-white flex items-center justify-center font-black text-3xl shadow-lg">
+                        {profile.displayName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </div>
+                  
                   <div>
-                    <h1 className="text-2xl font-display font-bold text-slate-900 flex items-center gap-1.5">
-                      @{username}
-                      <span className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" title="Active confession board" />
+                    <h1 className="text-xl font-extrabold tracking-tight drop-shadow-sm flex items-center justify-center gap-1.5">
+                      {profile.displayName}
                     </h1>
-                    <p className="text-xs text-slate-500">Anonymous message inbox is live</p>
+                    <p className="text-xs font-mono tracking-wider opacity-85">
+                      @{profile.username}
+                    </p>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-4 text-xs font-mono text-slate-500 pt-1">
-                  <span>📥 {totalReceived} Received</span>
-                  <span>💬 {totalReplies} Answered</span>
-                </div>
-              </div>
 
-              <div className="flex flex-wrap gap-2.5 w-full sm:w-auto">
-                <button
-                  onClick={copyBoardLink}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/60 font-semibold px-4 py-3 rounded-xl transition-all text-xs cursor-pointer"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copied' : 'Share My Link'}
-                </button>
-                <button
-                  onClick={() => setShowSubmissionDrawer(true)}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-3 rounded-xl transition-all text-xs shadow-lg shadow-indigo-600/10 cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  Send Anonymous Message
-                </button>
-              </div>
-            </div>
-
-            {/* Message Drawer direct submit */}
-            <AnimatePresence>
-              {showSubmissionDrawer && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden border border-slate-200 rounded-3xl bg-white/40 backdrop-blur-lg shadow-xl shadow-slate-200/50"
-                >
-                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                    <span className="text-xs uppercase tracking-wider font-bold text-indigo-600">Direct Submission Module</span>
-                    <button
-                      onClick={() => setShowSubmissionDrawer(false)}
-                      className="text-slate-500 hover:text-slate-700 text-xs font-semibold cursor-pointer"
-                    >
-                      Hide Form
-                    </button>
-                  </div>
-                  <VisitorSubmission prefilledUsername={username} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Categories filters */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-slate-700 font-medium">
-                  <Filter className="w-4 h-4 text-slate-500" />
-                  Filter confessions
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-2xl max-w-max shadow-sm">
-                <button
-                  onClick={() => setActiveFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                    activeFilter === 'all'
-                      ? 'bg-white text-slate-950 border border-slate-200/80 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  All ({messages.length})
-                </button>
-                {CATEGORIES.map((cat) => {
-                  const count = messages.filter(m => m.category === cat).length;
-                  if (count === 0) return null; // Only show active categories
-
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveFilter(cat)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                        activeFilter === cat
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/10'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <span>{CATEGORY_EMOJIS[cat]}</span>
-                      <span>{cat} ({count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Confessions list */}
-            <div className="space-y-6">
-              {filteredMessages.length === 0 ? (
-                <div className="text-center py-20 border border-dashed border-slate-200 rounded-3xl bg-white shadow-xl shadow-slate-200/50">
-                  <MessageSquare className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                  <h3 className="text-base font-bold text-slate-700">No active confessions found</h3>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto mt-1">
-                    {activeFilter === 'all'
-                      ? "This board is empty. Be the first to drop an anonymous message below!"
-                      : `No approved messages are matching the category "${activeFilter}".`}
-                  </p>
-                  {activeFilter === 'all' && (
-                    <button
-                      onClick={() => setShowSubmissionDrawer(true)}
-                      className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all cursor-pointer"
-                    >
-                      Write First Confession
-                    </button>
+                  {profile.bio && (
+                    <p className="text-xs opacity-75 max-w-xs leading-relaxed italic drop-shadow-xs">
+                      "{profile.bio}"
+                    </p>
                   )}
                 </div>
-              ) : (
-                <motion.div layout className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <AnimatePresence mode="popLayout">
-                    {filteredMessages.map((msg) => {
-                      const themeObj = CARD_THEMES.find(t => t.id === msg.theme) || CARD_THEMES[0];
-                      const hasReply = !!msg.reply;
 
-                      return (
-                        <motion.div
-                          key={msg.id}
-                          layout
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          whileHover={{ 
-                            y: -6, 
-                            scale: 1.015,
-                            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.06)"
-                          }}
-                          transition={{ 
-                            type: "spring", 
-                            stiffness: 300, 
-                            damping: 22,
-                            layout: { duration: 0.25 }
-                          }}
-                          className="flex flex-col h-full bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xl shadow-slate-200/50 hover:border-slate-300 cursor-pointer group"
-                        >
-                          {/* Styled Message Card body */}
-                          <div className={`p-6 flex-1 flex flex-col justify-between relative ${themeObj.bgClass} ${themeObj.borderClass}`}>
-                            {/* Card top details */}
-                            <div className="flex justify-between items-center mb-4">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-black ${themeObj.badgeClass}`}>
-                                {CATEGORY_EMOJIS[msg.category]} {msg.category}
-                              </span>
-                              <span className={`text-[10px] font-mono opacity-80 ${themeObj.textClass}`}>
-                                by {msg.nickname || 'Anonymous'}
-                              </span>
-                            </div>
+                {/* Premium Interactive Submission Card */}
+                <form onSubmit={handleSubmit} className="w-full">
+                  <div className={`rounded-3xl p-6 sm:p-7 shadow-2xl border flex flex-col justify-between relative transition-all duration-300 ${activeTheme.cardBgClass} ${activeTheme.borderClass}`}>
+                    
+                    {/* Speech bubble header */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${activeTheme.badgeClass}`}>
+                        {CATEGORY_EMOJIS[selectedCategory]} Send {selectedCategory}
+                      </span>
+                    </div>
 
-                            {/* Message Text content */}
-                            <p className={`text-base font-medium italic mb-6 leading-relaxed break-words flex-1 ${themeObj.textClass}`}>
-                              "{msg.message}"
-                            </p>
+                    <h2 className={`text-base font-black leading-tight mb-3.5 tracking-tight ${activeTheme.textClass}`}>
+                      Send me anonymous messages!
+                    </h2>
 
-                            {/* Card footer details */}
-                            <div className="flex justify-between items-center text-[10px] opacity-75">
-                              <span className={themeObj.textClass}>
-                                {new Date(msg.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </span>
-                              
-                              <button
-                                onClick={() => exportCardToPng(msg.id, msg.message, msg.category, msg.nickname || 'Anonymous', CATEGORY_EMOJIS[msg.category], msg.theme)}
-                                className={`flex items-center gap-1 py-1 px-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all font-semibold uppercase tracking-wider text-[9px] cursor-pointer ${themeObj.textClass}`}
-                              >
-                                <Share2 className="w-3 h-3" />
-                                Export Card
-                              </button>
-                            </div>
-                          </div>
+                    {/* Confession text area */}
+                    <textarea
+                      id="confession-text"
+                      rows={5}
+                      required
+                      placeholder={`type something honest... (300 char max)`}
+                      value={message}
+                      onChange={handleMessageChange}
+                      className={`w-full bg-black/5 hover:bg-black/10 focus:bg-black/10 rounded-2xl p-4 text-sm font-semibold placeholder:opacity-50 outline-none transition-colors leading-relaxed border border-black/5 focus:border-black/10 resize-none ${activeTheme.textClass}`}
+                    />
 
-                          {/* Reply Section */}
-                          {hasReply && (
-                            <div className="bg-slate-50 border-t border-slate-100 p-5 space-y-2">
-                              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-indigo-600 font-mono">
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                Reply from @{username}
-                              </div>
-                              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed font-sans italic">
-                                "{msg.reply}"
-                              </p>
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-            </div>
-          </div>
+                    {/* Character limit feedback */}
+                    <div className="flex justify-end mt-1">
+                      <span className={`text-[10px] font-mono opacity-60 ${activeTheme.textClass}`}>
+                        {message.length} / 300
+                      </span>
+                    </div>
+
+                    {/* Category Selection Carousel */}
+                    <div className="mt-4 pt-4 border-t border-black/5">
+                      <label className={`block text-[10px] uppercase tracking-wider font-extrabold opacity-60 mb-2.5 ${activeTheme.textClass}`}>
+                        Choose Card Category
+                      </label>
+                      <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-black/15">
+                        {CATEGORIES.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(cat);
+                              setSubmitError(null);
+                            }}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer ${
+                              selectedCategory === cat
+                                ? `${activeTheme.badgeClass} scale-[1.03]`
+                                : 'bg-black/5 border-transparent opacity-65 hover:opacity-90'
+                            } ${activeTheme.textClass}`}
+                          >
+                            <span>{CATEGORY_EMOJIS[cat]}</span>
+                            <span>{cat}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Optional Nickname input */}
+                    <div className="mt-4 pt-3 border-t border-black/5">
+                      <label htmlFor="nickname-input" className={`block text-[10px] uppercase tracking-wider font-extrabold opacity-60 mb-1.5 ${activeTheme.textClass}`}>
+                        Optional Nickname <span className="opacity-60">(Anonymous if empty)</span>
+                      </label>
+                      <input
+                        id="nickname-input"
+                        type="text"
+                        maxLength={25}
+                        placeholder="e.g. Secret admirer, Bestie"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        className={`w-full bg-black/5 hover:bg-black/10 focus:bg-black/10 rounded-xl py-2 px-3.5 text-xs font-bold placeholder:opacity-40 outline-none transition-colors border border-black/5 focus:border-black/10 ${activeTheme.textClass}`}
+                      />
+                    </div>
+
+                    {/* Submit Error */}
+                    {submitError && (
+                      <div className="mt-4 p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{submitError}</span>
+                      </div>
+                    )}
+
+                    {/* Submit message action */}
+                    <div className="mt-6">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className={`w-full font-black py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wider active:scale-[0.98] cursor-pointer ${activeTheme.buttonClass}`}
+                      >
+                        {isSubmitting ? (
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Send Message!
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                  </div>
+                </form>
+
+                {/* Secondary Board Actions */}
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                  <button
+                    onClick={copyProfileLink}
+                    className="flex-1 inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 active:scale-[0.98] text-white border border-white/25 hover:border-white/45 font-bold py-3.5 px-5 rounded-2xl transition-all text-xs cursor-pointer shadow-lg"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+                    {copied ? 'Copied Link!' : 'Share My Link'}
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="success-card-view"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white/15 backdrop-blur-xl border border-white/20 rounded-3xl p-8 sm:p-10 text-center text-white shadow-2xl max-w-sm w-full"
+              >
+                <div className="mx-auto w-14 h-14 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-300 mb-6 animate-bounce">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+
+                <h1 className="text-2xl font-black tracking-tight mb-2">Message Sent! 🤫</h1>
+                <p className="text-white/80 text-xs leading-relaxed mb-8">
+                  {autoBlocked 
+                    ? 'Your message was successfully sent, but flag filters triggered. It was redirected to the spam queue.'
+                    : 'Your message has been delivered anonymously to the queue. Keep them coming!'
+                  }
+                </p>
+
+                <button
+                  onClick={() => {
+                    setSubmitSuccess(false);
+                    setMessage('');
+                    setAutoBlocked(false);
+                  }}
+                  className={`w-full py-3.5 font-bold rounded-2xl transition-all text-xs uppercase tracking-wider ${activeTheme.buttonClass}`}
+                >
+                  Send Another Message
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 px-6 py-5 text-center text-[10px] text-white/50 tracking-wider">
+        Guaranteed 100% Anonymous. Powered by Confessly.
+      </footer>
     </div>
   );
 }
