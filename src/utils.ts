@@ -3,14 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export function exportCardToPng(
+export async function exportCardToPng(
   cardId: string,
   message: string,
   category: string,
   nickname: string,
   emoji: string,
   themeId: string,
-  reply?: string
+  reply?: string,
+  shareOption: 'download' | 'insta' = 'download'
 ) {
   const canvas = document.createElement('canvas');
   canvas.width = 1080;
@@ -337,10 +338,39 @@ export function exportCardToPng(
   ctx.fillStyle = watermarkSubColor;
   ctx.fillText('Submit yours at: confessly.web', 540, 1570);
 
-  // Download logic
+  // Download & Share logic
   const dataUrl = canvas.toDataURL('image/png');
-  const link = document.createElement('a');
-  link.download = reply ? `reply-${cardId}.png` : `confession-${cardId}.png`;
-  link.href = dataUrl;
-  link.click();
+  const filename = reply ? `reply-${cardId}.png` : `confession-${cardId}.png`;
+
+  if (shareOption === 'insta') {
+    let shared = false;
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Instagram Confession',
+          text: 'Shared from Confessly!'
+        });
+        shared = true;
+      }
+    } catch (err) {
+      console.error('Web Share failed', err);
+    }
+
+    if (!shared) {
+      // Fallback: regular download if sharing is not available/failed
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+    }
+  } else {
+    // Normal download
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
+  }
 }

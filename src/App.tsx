@@ -467,7 +467,7 @@ function HomeLanding() {
         </div>
         
         <p className="font-mono text-[10px] text-slate-400">
-          Confessly 2026. Made with <Heart className="w-3 h-3 text-rose-500 inline fill-current" /> for healthy and secure expressions.
+          © by Infinium Technologies. Confessly 2026. Made with <Heart className="w-3 h-3 text-rose-500 inline fill-current" /> for healthy and secure expressions.
         </p>
       </footer>
     </div>

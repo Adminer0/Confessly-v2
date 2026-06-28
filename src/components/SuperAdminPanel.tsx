@@ -16,12 +16,6 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function SuperAdminPanel() {
   const { navigate } = useRouter();
 
-  // Authentication States
-  const [usernameInput, setUsernameInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('admin_token'));
   const [superUser, setSuperUser] = useState<{ username: string; role: string } | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -58,6 +52,7 @@ export default function SuperAdminPanel() {
   useEffect(() => {
     if (!authToken) {
       setIsCheckingSession(false);
+      navigate('/admin');
       return;
     }
 
@@ -69,12 +64,16 @@ export default function SuperAdminPanel() {
         if (data.valid && data.role === 'super_admin') {
           setSuperUser({ username: data.username, role: data.role });
         } else {
-          handleLogout();
+          localStorage.removeItem('admin_token');
+          setAuthToken(null);
+          setSuperUser(null);
+          navigate('/admin');
         }
         setIsCheckingSession(false);
       })
       .catch(() => {
         setIsCheckingSession(false);
+        navigate('/admin');
       });
   }, [authToken]);
 
@@ -138,41 +137,11 @@ export default function SuperAdminPanel() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    setLoginError(null);
-
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usernameInput, password: passwordInput })
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Authentication failed');
-      }
-
-      if (data.user.role !== 'super_admin') {
-        throw new Error('Access denied: Unauthorized role credentials');
-      }
-
-      localStorage.setItem('admin_token', data.token);
-      setAuthToken(data.token);
-      setSuperUser({ username: data.user.username, role: data.user.role });
-    } catch (err: any) {
-      setLoginError(err.message);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     setAuthToken(null);
     setSuperUser(null);
+    navigate('/admin');
   };
 
   // Create Admin
@@ -381,81 +350,7 @@ export default function SuperAdminPanel() {
 
   // --- LOGIN SCREEN ---
   if (!superUser) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Subtle Decorative Elements */}
-        <div className="absolute top-1/3 left-1/3 w-80 h-80 bg-rose-200/30 rounded-full blur-[120px]" />
-
-        <div className="max-w-md w-full space-y-8 relative z-10 animate-fadeIn">
-          <div className="text-center">
-            <div className="mx-auto h-12 w-12 bg-white border border-slate-200 rounded-2xl flex items-center justify-center text-rose-500 mb-4 shadow-md">
-              <Settings className="w-6 h-6 animate-spin-slow" />
-            </div>
-            <h2 className="text-3xl font-display font-bold text-slate-950">Super Admin Dashboard</h2>
-            <p className="mt-2 text-sm text-slate-500 font-sans">
-              Enter credentials to access root level configuration and admin management.
-            </p>
-          </div>
-
-          <form className="mt-8 space-y-5 bg-white border border-slate-200 p-8 rounded-3xl shadow-xl shadow-slate-200/60" onSubmit={handleLogin}>
-            {loginError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs flex items-center gap-2.5">
-                <ShieldAlert className="w-4 h-4 shrink-0" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="owner-username" className="block text-xs uppercase tracking-wider font-bold text-slate-500 mb-1.5 font-mono">
-                  Super Username
-                </label>
-                <input
-                  id="owner-username"
-                  type="text"
-                  required
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl py-3 px-4 text-slate-900 placeholder:text-slate-400 outline-none transition-colors text-sm font-semibold"
-                  placeholder="e.g. owner"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="owner-password" className="block text-xs uppercase tracking-wider font-bold text-slate-500 mb-1.5 font-mono">
-                  Secure Password
-                </label>
-                <input
-                  id="owner-password"
-                  type="password"
-                  required
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl py-3 px-4 text-slate-900 placeholder:text-slate-400 outline-none transition-colors text-sm font-semibold"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-rose-600/10 cursor-pointer"
-            >
-              {isLoggingIn ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
-              ) : (
-                'Access Root Settings'
-              )}
-            </button>
-          </form>
-
-          <p className="text-center text-xs text-slate-400">
-            For security, super admin logins are fully logged in our core auditing ledger.
-          </p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // --- MAIN AUTHENTICATED SUPER ADMIN SYSTEM ---
@@ -493,36 +388,6 @@ export default function SuperAdminPanel() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8 animate-fadeIn">
         
-        {/* Statistics & System Health */}
-        {serverStats && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><Cpu className="w-3.5 h-3.5 text-indigo-500" /> CPU Usage</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.cpuUsage}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><HardDrive className="w-3.5 h-3.5 text-pink-500" /> Storage Capacity</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.storageUsage}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><Clock className="w-3.5 h-3.5 text-emerald-500" /> System Uptime</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.uptime}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><Users className="w-3.5 h-3.5 text-amber-500" /> Active Boards</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.totalUsers}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><Globe className="w-3.5 h-3.5 text-rose-500" /> Traffic Volume</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.websiteTraffic}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-2xl p-4.5 space-y-1 shadow-sm">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 font-mono"><ShieldCheck className="w-3.5 h-3.5 text-violet-500" /> Total Admin Count</span>
-              <p className="text-xl font-display font-black text-slate-900">{serverStats.adminCount}</p>
-            </div>
-          </div>
-        )}
-
         {/* View Selection Tab Button Bar */}
         <div className="flex border-b border-slate-200 gap-6">
           <button

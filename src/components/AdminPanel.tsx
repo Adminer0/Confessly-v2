@@ -13,7 +13,7 @@ import { exportCardToPng } from '../utils.js';
 import {
   Lock, CheckCircle, Trash2, Star, MessageSquare, ShieldAlert,
   Search, SlidersHorizontal, Eye, RefreshCw, BarChart3, Inbox,
-  Compass, Laptop, MapPin, KeyRound, LogOut, Check, X
+  Compass, Laptop, MapPin, KeyRound, LogOut, Check, X, ArrowLeft, Instagram
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -62,6 +62,7 @@ export default function AdminPanel() {
   const [impersonatedCoords, setImpersonatedCoords] = useState<{ latitude?: number; longitude?: number; username?: string }>({});
   const [exportingMessage, setExportingMessage] = useState<Message | null>(null);
   const [selectedExportTemplate, setSelectedExportTemplate] = useState<string>('sunset');
+  const [showInstaInstructions, setShowInstaInstructions] = useState(false);
 
   // Live Notification, Seen Set and Trash Deletion States
   const [newConfessionNotification, setNewConfessionNotification] = useState<Message | null>(null);
@@ -133,6 +134,10 @@ export default function AdminPanel() {
       .then(data => {
         if (data.valid) {
           setAdminUser({ username: data.username, role: data.role });
+          if (data.role === 'super_admin') {
+            navigate('/su');
+            return;
+          }
         } else {
           handleLogout();
         }
@@ -332,6 +337,11 @@ export default function AdminPanel() {
       setAuthToken(data.token);
       setAdminUser({ username: data.user.username, role: data.user.role });
 
+      if (data.user.role === 'super_admin') {
+        navigate('/su');
+        return;
+      }
+
       if (authMode === 'register') {
         setShowShareModal(true);
       }
@@ -441,6 +451,17 @@ export default function AdminPanel() {
   if (!adminUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        {/* Top Navigation Arrow to Home */}
+        <div className="absolute top-6 left-6 z-20">
+          <button
+            onClick={() => navigate('/')}
+            className="group flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Back to Home
+          </button>
+        </div>
+
         {/* Glow Effects */}
         <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-500/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/5 rounded-full blur-[120px]" />
@@ -451,39 +472,11 @@ export default function AdminPanel() {
               <Lock className="w-6 h-6" />
             </div>
             <h2 className="text-3xl font-display font-bold text-slate-900">
-              {authMode === 'register' ? 'Get Your Handle' : 'Admin Dashboard'}
+              Admin Dashboard
             </h2>
             <p className="mt-2 text-sm text-slate-500 font-sans">
-              {authMode === 'register' 
-                ? 'Create a custom shareable link to receive anonymous confessions!' 
-                : 'Sign in to moderate confessions and view analytics'}
+              Sign in to moderate confessions and view analytics
             </p>
-
-            {/* Tab Swapper */}
-            <div className="mt-6 flex bg-slate-200 p-1 rounded-2xl border border-slate-300/30">
-              <button
-                type="button"
-                onClick={() => { setAuthMode('login'); setLoginError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  authMode === 'login' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMode('register'); setLoginError(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  authMode === 'register' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Create NGL Link
-              </button>
-            </div>
           </div>
 
           <form className="mt-6 space-y-5 bg-white border border-slate-200 p-8 rounded-3xl shadow-xl shadow-slate-200/50" onSubmit={handleLogin}>
@@ -1356,6 +1349,26 @@ export default function AdminPanel() {
                 {/* Actions */}
                 <div className="mt-6 space-y-2">
                   <button
+                    onClick={async () => {
+                      await exportCardToPng(
+                        exportingMessage.id,
+                        exportingMessage.message,
+                        exportingMessage.category,
+                        exportingMessage.nickname || 'Anonymous',
+                        CATEGORY_EMOJIS[exportingMessage.category],
+                        selectedExportTemplate,
+                        exportingMessage.reply,
+                        'insta'
+                      );
+                      setShowInstaInstructions(true);
+                    }}
+                    className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/10 cursor-pointer"
+                  >
+                    <Instagram className="w-4 h-4" />
+                    Share to Instagram Story
+                  </button>
+
+                  <button
                     onClick={() => {
                       exportCardToPng(
                         exportingMessage.id,
@@ -1364,7 +1377,8 @@ export default function AdminPanel() {
                         exportingMessage.nickname || 'Anonymous',
                         CATEGORY_EMOJIS[exportingMessage.category],
                         selectedExportTemplate,
-                        exportingMessage.reply
+                        exportingMessage.reply,
+                        'download'
                       );
                       setExportingMessage(null);
                     }}
@@ -1373,6 +1387,7 @@ export default function AdminPanel() {
                     <RefreshCw className="w-4 h-4" />
                     Generate & Download PNG
                   </button>
+                  
                   <button
                     onClick={() => setExportingMessage(null)}
                     className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl text-xs transition-colors cursor-pointer"
@@ -1384,6 +1399,66 @@ export default function AdminPanel() {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Instagram Instructions Modal Overlay */}
+        <AnimatePresence>
+          {showInstaInstructions && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl relative text-center"
+              >
+                <button
+                  onClick={() => {
+                    setShowInstaInstructions(false);
+                    setExportingMessage(null);
+                  }}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="mx-auto h-12 w-12 bg-pink-50 border border-pink-100 rounded-2xl flex items-center justify-center text-pink-600 mb-2">
+                  <Instagram className="w-6 h-6" />
+                </div>
+
+                <h3 className="text-base font-bold text-slate-900 font-display">Ready to post on Instagram!</h3>
+                
+                <div className="text-left text-xs text-slate-600 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-sans">
+                  <p className="font-semibold text-slate-800 text-center pb-1">📸 Quick Steps to Post:</p>
+                  <div className="flex gap-2">
+                    <span className="font-bold text-pink-500 font-mono">1.</span>
+                    <span>The custom card image has been prepared and downloaded to your device.</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="font-bold text-pink-500 font-mono">2.</span>
+                    <span>Open the <strong>Instagram app</strong> on your mobile phone.</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="font-bold text-pink-500 font-mono">3.</span>
+                    <span>Tap to <strong>create a Story</strong> and select the downloaded card from your gallery.</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="font-bold text-pink-500 font-mono">4.</span>
+                    <span>Add a Link Sticker with your public handle url to receive more confessions!</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowInstaInstructions(false);
+                    setExportingMessage(null);
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Got it, let's share!
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Onboarding / Link Sharing Modal */}
         <AnimatePresence>
