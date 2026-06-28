@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { RouterProvider, useRouter } from './components/Router.jsx';
 import VisitorSubmission from './components/VisitorSubmission.jsx';
 import PublicProfile from './components/PublicProfile.jsx';
@@ -599,6 +600,7 @@ export default function App() {
   return (
     <RouterProvider>
       <RouterSwitch />
+      <Analytics />
     </RouterProvider>
   );
 }

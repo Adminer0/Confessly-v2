@@ -30,7 +30,7 @@ if (process.env.VERCEL || process.env.NOW_BUILDER) {
 }
 
 // Ensure DB directory and file exist
-function initializeDB() {
+function initializeDB(force = false) {
   const dir = path.dirname(DB_FILE);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -151,7 +151,7 @@ function initializeDB() {
     }
   ];
 
-  if (!fs.existsSync(DB_FILE)) {
+  if (force || !fs.existsSync(DB_FILE)) {
     const initialDB: DatabaseSchema = {
       admins: defaultAdmins,
       messages: defaultMessages,
@@ -171,7 +171,7 @@ function readDB(): DatabaseSchema {
     return JSON.parse(data);
   } catch (err) {
     console.error('Error reading DB, reinitializing...', err);
-    initializeDB();
+    initializeDB(true);
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
   }
 }
@@ -324,6 +324,17 @@ function parseUserAgent(ua: string) {
   return { browser, os, device, deviceName };
 }
 
+// Safely retrieve the client's IP address (handling Vercel arrays, proxies and missing sockets)
+function getClientIp(req: express.Request): string {
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  if (xForwardedFor) {
+    const ipString = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
+    const firstIp = ipString.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+  return req.socket?.remoteAddress || '127.0.0.1';
+}
+
 // Simple in-memory session registry for security
 const SESSIONS: { [token: string]: { userId: string; username: string; expires: number; role: string } } = {};
 
@@ -362,7 +373,7 @@ async function startServer() {
   // Rate Limiting (Simple memory-based)
   const ipRequests: { [ip: string]: { count: number; resetTime: number } } = {};
   function rateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const now = Date.now();
     
     if (!ipRequests[ip] || ipRequests[ip].resetTime < now) {
@@ -394,7 +405,7 @@ async function startServer() {
   // Login Endpoint
   app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const ua = req.headers['user-agent'] || '';
     
     if (isIpBlocked(ip)) {
@@ -486,7 +497,7 @@ async function startServer() {
   // Register Endpoint for New Admins (NGL handle setup)
   app.post('/api/auth/register', (req, res) => {
     const { username, password } = req.body;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const ua = req.headers['user-agent'] || '';
 
     if (isIpBlocked(ip)) {
@@ -573,7 +584,7 @@ async function startServer() {
   // Submit Message (Visitor Flow)
   app.post('/api/messages', rateLimit, (req, res) => {
     const { targetUsername, message, category, emoji, theme, nickname, resolution, language, timezone, latitude, longitude } = req.body;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const ua = req.headers['user-agent'] || '';
 
     if (isIpBlocked(ip)) {
@@ -749,7 +760,7 @@ async function startServer() {
   // Permanently clear/empty the trash folder
   app.delete('/api/messages/trash', authenticate, (req, res) => {
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
     const db = readDB();
     const initialCount = db.messages.length;
 
@@ -774,7 +785,7 @@ async function startServer() {
     const { id } = req.params;
     const { status, favorite } = req.body;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     const db = readDB();
     const messageIndex = db.messages.findIndex(m => m.id === id);
@@ -816,7 +827,7 @@ async function startServer() {
     const { id } = req.params;
     const { reply } = req.body;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     const db = readDB();
     const message = db.messages.find(m => m.id === id);
@@ -983,7 +994,7 @@ async function startServer() {
   app.post('/api/su/admins', authenticate, requireSuperAdmin, (req, res) => {
     const { username, password, permissions } = req.body;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     if (!username || !password) {
       res.status(400).json({ error: 'Username and password are required' });
@@ -1017,7 +1028,7 @@ async function startServer() {
     const { id } = req.params;
     const { disabled, permissions, password } = req.body;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     const db = readDB();
     const admin = db.admins.find(a => a.id === id);
@@ -1055,7 +1066,7 @@ async function startServer() {
   app.delete('/api/su/admins/:id', authenticate, requireSuperAdmin, (req, res) => {
     const { id } = req.params;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     const db = readDB();
     const adminIndex = db.admins.findIndex(a => a.id === id);
@@ -1087,7 +1098,7 @@ async function startServer() {
   app.post('/api/su/settings', authenticate, requireSuperAdmin, (req, res) => {
     const { blockedIPs, profanityFilterEnabled, customBlockedWords, defaultCharacterLimit } = req.body;
     const session = (req as any).userSession;
-    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const ip = getClientIp(req);
 
     const db = readDB();
 
