@@ -39,6 +39,10 @@ export default function DevMode() {
   const [selectedLog, setSelectedLog] = useState<DevLogEntry | null>(null);
   const [copyingStatus, setCopyingStatus] = useState<string | null>(null);
   const [revealSecrets, setRevealSecrets] = useState(false);
+  
+  // Passcode states for production bypass
+  const [inputPass, setInputPass] = useState('');
+  const [passError, setPassError] = useState('');
 
   // Sync tab with current router pathname
   useEffect(() => {
@@ -54,7 +58,9 @@ export default function DevMode() {
   const fetchConfig = async () => {
     setLoadingConfig(true);
     try {
-      const response = await fetch('/api/dev/config');
+      const storedPass = localStorage.getItem('dev_bypass') || '';
+      const url = storedPass ? `/api/dev/config?pass=${storedPass}` : '/api/dev/config';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setEnvConfig(data);
@@ -72,7 +78,9 @@ export default function DevMode() {
   const fetchAuditLogs = async () => {
     setLoadingAuditLogs(true);
     try {
-      const response = await fetch('/api/dev/audit-logs');
+      const storedPass = localStorage.getItem('dev_bypass') || '';
+      const url = storedPass ? `/api/dev/audit-logs?pass=${storedPass}` : '/api/dev/audit-logs';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setAuditLogs(data.logs || []);
@@ -85,6 +93,13 @@ export default function DevMode() {
   };
 
   useEffect(() => {
+    // Check if there is a 'pass' query parameter in the URL
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlPass = searchParams.get('pass');
+    if (urlPass === '7845') {
+      localStorage.setItem('dev_bypass', '7845');
+    }
+
     fetchConfig();
     setLogs(getDevLogs());
 
@@ -134,6 +149,17 @@ export default function DevMode() {
     navigate(tabPath);
   };
 
+  const handleBypassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputPass.trim() === '7845') {
+      localStorage.setItem('dev_bypass', '7845');
+      setPassError('');
+      await fetchConfig();
+    } else {
+      setPassError('Invalid developer passcode.');
+    }
+  };
+
   if (loadingConfig) {
     return (
       <div className="min-h-screen bg-[#060814] text-slate-400 flex flex-col items-center justify-center font-mono p-6">
@@ -154,11 +180,35 @@ export default function DevMode() {
           <div className="space-y-2">
             <h1 className="text-xl font-bold tracking-tight text-white uppercase">Access Denied</h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Developer diagnostics interface is locked in production unless explicitly enabled via environment configuration.
+              Developer diagnostics interface is locked in production unless explicitly enabled via environment configuration or bypass passcode.
             </p>
           </div>
+
+          {/* Passcode Bypass Form */}
+          <form onSubmit={handleBypassSubmit} className="space-y-3 pt-2">
+            <div className="text-left space-y-1">
+              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Enter Developer Bypass Passcode</label>
+              <input
+                type="password"
+                placeholder="••••"
+                value={inputPass}
+                onChange={(e) => setInputPass(e.target.value)}
+                className="w-full bg-slate-950 border border-red-500/20 rounded-xl px-3 py-2.5 text-center font-mono text-sm tracking-widest text-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+            {passError && (
+              <p className="text-[11px] text-red-400 text-left font-bold uppercase">{passError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Verify & Unlock
+            </button>
+          </form>
+
           <div className="p-4 bg-black/45 rounded-xl border border-white/5 text-left space-y-2 text-[11px] leading-relaxed">
-            <div className="text-red-400 font-bold uppercase">To authorize:</div>
+            <div className="text-red-400 font-bold uppercase">To authorize via environment:</div>
             <p className="text-slate-300">
               Set the following environment variable in your deployment dashboard or <code className="bg-slate-800 px-1 py-0.5 rounded text-white">.env</code> configuration:
             </p>
@@ -168,7 +218,7 @@ export default function DevMode() {
           </div>
           <button
             onClick={() => navigate('/')}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
           >
             Return to Safety
           </button>
