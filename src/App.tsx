@@ -12,6 +12,8 @@ import AdminPanel from './components/AdminPanel.jsx';
 import { PrivacyPolicy, TermsOfService } from './components/StaticPages.jsx';
 import SuperAdminPanel from './components/SuperAdminPanel.jsx';
 import ConfesslyLogo from './components/ConfesslyLogo.jsx';
+import DevMode from './components/DevMode.jsx';
+import ErrorDiagnosticsPanel from './components/ErrorDiagnosticsPanel.jsx';
 import { CARD_THEMES, CATEGORIES, CATEGORY_EMOJIS } from './constants.js';
 import { 
   Sparkles, ArrowRight, ShieldCheck, HelpCircle, Heart, Lock, KeyRound, 
@@ -38,6 +40,17 @@ function HomeLanding() {
   const [publicMessages, setPublicMessages] = useState<any[]>([]);
   const [publicLoading, setPublicLoading] = useState(true);
   const [publicError, setPublicError] = useState<string | null>(null);
+
+  // Capture failed API requests for detailed diagnostics
+  const [lastApiError, setLastApiError] = useState<any>(null);
+
+  useEffect(() => {
+    const handleApiError = (e: any) => {
+      setLastApiError(e.detail);
+    };
+    window.addEventListener('dev-api-error' as any, handleApiError);
+    return () => window.removeEventListener('dev-api-error' as any, handleApiError);
+  }, []);
   
   // Submission on Public Board
   const [newMessageText, setNewMessageText] = useState('');
@@ -322,9 +335,12 @@ function HomeLanding() {
                   </div>
 
                   {onboardingError && (
-                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{onboardingError}</span>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{onboardingError}</span>
+                      </div>
+                      <ErrorDiagnosticsPanel errorMsg={onboardingError} apiDetails={lastApiError} />
                     </div>
                   )}
 
@@ -489,6 +505,15 @@ function RouterSwitch() {
   const { path, navigate } = useRouter();
 
   const getPage = () => {
+    if (path === '/dev') {
+      useEffect(() => {
+        navigate('/sdev/home');
+      }, [navigate]);
+      return null;
+    }
+    if (path.startsWith('/sdev')) {
+      return <DevMode />;
+    }
     if (path === '/') {
       return <HomeLanding />;
     }

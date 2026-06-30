@@ -26,8 +26,13 @@ if (process.env.VERCEL || process.env.NOW_BUILDER) {
         sourceDbPath = path.join(process.cwd(), 'api', 'data', 'db.json');
       }
       if (!fs.existsSync(sourceDbPath)) {
-        // Fallback: search relative to this file
-        sourceDbPath = path.join(new URL('.', import.meta.url).pathname, 'data', 'db.json');
+        // Fallback: search relative to this file safely without crashing
+        try {
+          if (typeof import.meta !== 'undefined' && import.meta.url) {
+            const pathname = new URL('.', import.meta.url).pathname;
+            sourceDbPath = path.join(pathname, 'data', 'db.json');
+          }
+        } catch (_) {}
       }
 
       if (fs.existsSync(sourceDbPath)) {
@@ -1268,6 +1273,62 @@ function startServer() {
       logs: db.auditLogs.slice(0, 30) // Detailed audit log history
     };
     res.json(stats);
+  });
+
+  // --- Developer Mode API Endpoints ---
+  app.get('/api/dev/config', (req, res) => {
+    const isAllowed = process.env.NODE_ENV !== 'production' || process.env.DEV_MODE === 'true';
+    
+    let dbStatus = false;
+    let dbSize = 0;
+    try {
+      const db = readDB();
+      dbStatus = !!db && Array.isArray(db.admins);
+      if (fs.existsSync(DB_FILE)) {
+        dbSize = fs.statSync(DB_FILE).size;
+      }
+    } catch (err) {
+      dbStatus = false;
+    }
+
+    res.json({
+      success: true,
+      devModeEnabled: isAllowed,
+      environment: process.env.NODE_ENV || 'development',
+      runtime: 'NodeJS ' + process.version,
+      platform: process.platform,
+      database: {
+        connected: dbStatus,
+        filePath: DB_FILE,
+        fileSize: dbSize,
+        writable: true
+      },
+      envVars: {
+        GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+        APP_URL: !!process.env.APP_URL,
+        DEV_MODE: !!process.env.DEV_MODE,
+        VERCEL: !!process.env.VERCEL
+      },
+      apiBaseUrl: process.env.APP_URL || '',
+      origin: req.headers.host || 'localhost:3000'
+    });
+  });
+
+  app.get('/api/dev/audit-logs', (req, res) => {
+    const isAllowed = process.env.NODE_ENV !== 'production' || process.env.DEV_MODE === 'true';
+    if (!isAllowed) {
+      res.status(403).json({ error: 'Developer Mode is disabled in production.' });
+      return;
+    }
+    try {
+      const db = readDB();
+      res.json({
+        success: true,
+        logs: db.auditLogs || []
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Vite development routing & static routing
